@@ -1,16 +1,53 @@
 from datetime import datetime
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
+
+
+TaskStatus = Literal[
+    "todo",
+    "in_progress",
+    "done",
+]
 
 
 class TaskCreate(BaseModel):
     name: str
-    status: str = "todo"
+    status: TaskStatus = "todo"
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, value: str) -> str:
+        value = value.strip()
+
+        if not value:
+            raise ValueError("Task name cannot be empty")
+
+        if len(value) > 255:
+            raise ValueError("Task name must be 255 characters or less")
+
+        return value
 
 
 class TaskUpdate(BaseModel):
     name: str | None = None
-    status: str | None = None
+    status: TaskStatus | None = None
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+
+        value = value.strip()
+
+        if not value:
+            raise ValueError("Task name cannot be empty")
+
+        if len(value) > 255:
+            raise ValueError("Task name must be 255 characters or less")
+
+        return value
 
 
 class TaskResponse(BaseModel):

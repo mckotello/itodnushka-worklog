@@ -185,3 +185,29 @@ async def test_login_requires_fields(client):
     )
 
     assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_register_rejects_short_password(client):
+    response = await client.post(
+        "/auth/register",
+        json={
+            "email": f"short-password-{uuid.uuid4()}@example.com",
+            "password": "1234567",
+        },
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_login_rejects_short_password(client):
+    response = await client.post(
+        "/auth/login",
+        json={
+            "email": "test@example.com",
+            "password": "1234567",
+        },
+    )
+
+    assert response.status_code == 422

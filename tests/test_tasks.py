@@ -280,3 +280,101 @@ async def test_task_requires_authentication(client):
     )
 
     assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_create_task_rejects_empty_name(
+    client,
+    auth_token,
+    project_factory,
+):
+    token = await auth_token(
+        f"empty-task-name-{uuid.uuid4()}@example.com"
+    )
+    project = await project_factory(token)
+
+    response = await client.post(
+        f"/projects/{project['id']}/tasks/",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+        json={
+            "name": "   ",
+        },
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_create_task_rejects_invalid_status(
+    client,
+    auth_token,
+    project_factory,
+):
+    token = await auth_token(
+        f"invalid-task-status-{uuid.uuid4()}@example.com"
+    )
+    project = await project_factory(token)
+
+    response = await client.post(
+        f"/projects/{project['id']}/tasks/",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+        json={
+            "name": "Test Task",
+            "status": "invalid",
+        },
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_create_task_rejects_too_long_name(
+    client,
+    auth_token,
+    project_factory,
+):
+    token = await auth_token(
+        f"long-task-name-{uuid.uuid4()}@example.com"
+    )
+    project = await project_factory(token)
+
+    response = await client.post(
+        f"/projects/{project['id']}/tasks/",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+        json={
+            "name": "a" * 256,
+        },
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_create_task_strips_name(
+    client,
+    auth_token,
+    project_factory,
+):
+    token = await auth_token(
+        f"strip-task-name-{uuid.uuid4()}@example.com"
+    )
+    project = await project_factory(token)
+
+    response = await client.post(
+        f"/projects/{project['id']}/tasks/",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+        json={
+            "name": "  Test Task  ",
+        },
+    )
+
+    assert response.status_code == 201
+    assert response.json()["name"] == "Test Task"
