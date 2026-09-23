@@ -1,10 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user, get_db
 from app.models.task import Task
 from app.models.user import User
-from app.schemas.task import TaskCreate, TaskResponse, TaskUpdate
+from app.schemas.task import (
+    TaskCreate,
+    TaskListResponse,
+    TaskResponse,
+    TaskUpdate,
+)
 from app.services.project_access_service import get_user_project
 from app.services.task_service import (
     get_project_tasks,
@@ -56,10 +61,12 @@ async def create_task(
 
 @router.get(
     "/",
-    response_model=list[TaskResponse],
+    response_model=TaskListResponse,
 )
 async def get_tasks(
     project_id: int,
+    page: int = Query(default=1, ge=1),
+    limit: int = Query(default=20, ge=1, le=100),
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
@@ -75,9 +82,21 @@ async def get_tasks(
             detail="Project not found",
         )
 
-    return await get_project_tasks(
+    tasks, total = await get_project_tasks(
         session=session,
         project_id=project_id,
+        page=page,
+        limit=limit,
+    )
+
+    pages = (total + limit - 1) // limit if total > 0 else 0
+
+    return TaskListResponse(
+        items=tasks,
+        total=total,
+        page=page,
+        limit=limit,
+        pages=pages,
     )
 
 

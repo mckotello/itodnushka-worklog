@@ -102,15 +102,17 @@ async def test_get_project_tasks_returns_only_project_tasks(db_session):
 
     await db_session.commit()
 
-    result = await get_project_tasks(
+    tasks, total = await get_project_tasks(
         session=db_session,
         project_id=project.id,
+        page=1,
+        limit=20,
     )
 
-    result_ids = {task.id for task in result}
-
-    assert len(result) == 2
-    assert result_ids == {task_1.id, task_2.id}
+    assert total == 2
+    assert len(tasks) == 2
+    assert tasks[0].id == task_2.id
+    assert tasks[1].id == task_1.id
 
 
 @pytest.mark.asyncio

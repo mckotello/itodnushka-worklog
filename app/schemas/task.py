@@ -58,3 +58,11 @@ class TaskResponse(BaseModel):
     name: str
     status: str
     created_at: datetime
+
+
+class TaskListResponse(BaseModel):
+    items: list[TaskResponse]
+    total: int
+    page: int
+    limit: int
+    pages: int

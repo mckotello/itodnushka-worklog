@@ -131,11 +131,15 @@ async def test_task_list(client, auth_token, project_factory):
 
     assert response.status_code == 200
 
-    tasks = response.json()
+    data = response.json()
 
-    assert len(tasks) == 2
-    assert tasks[0]["name"] == "First task"
-    assert tasks[1]["name"] == "Second task"
+    assert data["total"] == 2
+    assert data["page"] == 1
+    assert data["limit"] == 20
+    assert data["pages"] == 1
+    assert len(data["items"]) == 2
+    assert data["items"][0]["name"] == "Second task"
+    assert data["items"][1]["name"] == "First task"
 
 
 @pytest.mark.asyncio
@@ -221,9 +225,10 @@ async def test_task_delete(client, auth_token, project_factory):
 
     assert response.status_code == 200
 
-    tasks = response.json()
+    data = response.json()
 
-    assert all(task["id"] != task_id for task in tasks)
+    assert data["total"] == 0
+    assert data["items"] == []
 
 
 @pytest.mark.asyncio
@@ -378,3 +383,184 @@ async def test_create_task_strips_name(
 
     assert response.status_code == 201
     assert response.json()["name"] == "Test Task"
+
+@pytest.mark.asyncio
+async def test_task_list_pagination(
+        client,
+        auth_token,
+        project_factory,
+):
+    token = await auth_token(
+        f"task-pagination-{uuid.uuid4()}@example.com",
+    )
+
+    project = await project_factory(
+        token,
+        "Task Pagination Project",
+    )
+
+    project_id = project["id"]
+
+    for i in range(5):
+        await create_task(
+            client,
+            token,
+            project_id,
+            f"Task {i + 1}",
+        )
+
+    response = await client.get(
+        f"/projects/{project_id}/tasks/?page=1&limit=2",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["total"] == 5
+    assert data["page"] == 1
+    assert data["limit"] == 2
+    assert data["pages"] == 3
+    assert len(data["items"]) == 2
+
+@pytest.mark.asyncio
+async def test_task_list_pagination_second_page(
+        client,
+        auth_token,
+        project_factory,
+):
+    token = await auth_token(
+        f"task-pagination-page2-{uuid.uuid4()}@example.com",
+    )
+
+    project = await project_factory(
+        token,
+        "Task Pagination Page 2 Project",
+    )
+
+    project_id = project["id"]
+
+    created_tasks = []
+
+    for i in range(5):
+        created_tasks.append(
+            await create_task(
+                client,
+                token,
+                project_id,
+                f"Task {i + 1}",
+            )
+        )
+
+    response = await client.get(
+        f"/projects/{project_id}/tasks/?page=2&limit=2",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["total"] == 5
+    assert data["page"] == 2
+    assert data["limit"] == 2
+    assert data["pages"] == 3
+    assert len(data["items"]) == 2
+
+    assert data["items"][0]["id"] == created_tasks[2]["id"]
+    assert data["items"][1]["id"] == created_tasks[1]["id"]
+
+@pytest.mark.asyncio
+async def test_task_list_pagination_out_of_range(
+        client,
+        auth_token,
+        project_factory,
+):
+    token = await auth_token(
+        f"task-pagination-range-{uuid.uuid4()}@example.com",
+    )
+
+    project = await project_factory(
+        token,
+        "Task Pagination Range Project",
+    )
+
+    project_id = project["id"]
+
+    for i in range(5):
+        await create_task(
+            client,
+            token,
+            project_id,
+            f"Task {i + 1}",
+        )
+
+    response = await client.get(
+        f"/projects/{project_id}/tasks/?page=4&limit=2",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["total"] == 5
+    assert data["page"] == 4
+    assert data["limit"] == 2
+    assert data["pages"] == 3
+    assert data["items"] == []
+
+@pytest.mark.asyncio
+async def test_task_list_rejects_invalid_page(
+        client,
+        auth_token,
+        project_factory,
+):
+    token = await auth_token(
+        f"task-pagination-invalid-page-{uuid.uuid4()}@example.com",
+    )
+
+    project = await project_factory(
+        token,
+        "Task Invalid Page Project",
+    )
+
+    response = await client.get(
+        f"/projects/{project['id']}/tasks/?page=0",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+    )
+
+    assert response.status_code == 422
+
+@pytest.mark.asyncio
+async def test_task_list_rejects_invalid_limit(
+        client,
+        auth_token,
+        project_factory,
+):
+    token = await auth_token(
+        f"task-pagination-invalid-limit-{uuid.uuid4()}@example.com",
+    )
+
+    project = await project_factory(
+        token,
+        "Task Invalid Limit Project",
+    )
+
+    response = await client.get(
+        f"/projects/{project['id']}/tasks/?limit=101",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+    )
+
+    assert response.status_code == 422
