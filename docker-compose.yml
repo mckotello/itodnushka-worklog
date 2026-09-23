@@ -1,0 +1,41 @@
+services:
+  app:
+    build: .
+    container_name: worklog_app
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./app:/app/app
+      - ./alembic:/app/alembic
+      - ./alembic.ini:/app/alembic.ini
+      - ./tests:/app/tests
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:17
+    container_name: worklog_postgres
+    environment:
+      POSTGRES_DB: worklog
+      POSTGRES_USER: worklog
+      POSTGRES_PASSWORD: worklog
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+  postgres_test:
+    image: postgres:17
+    container_name: worklog_postgres_test
+    environment:
+      POSTGRES_DB: worklog_test
+      POSTGRES_USER: worklog
+      POSTGRES_PASSWORD: worklog
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+volumes:
+  postgres_data:
+  postgres_test_data:
