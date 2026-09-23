@@ -4,7 +4,12 @@ from pathlib import Path
 
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 from sqlalchemy.pool import NullPool
 
 
@@ -33,6 +38,7 @@ test_engine = create_async_engine(
 
 test_session_factory = async_sessionmaker(
     test_engine,
+    class_=AsyncSession,
     expire_on_commit=False,
 )
 
@@ -54,6 +60,27 @@ async def client():
         base_url="http://test",
     ) as client:
         yield client
+
+
+@pytest_asyncio.fixture
+async def db_session():
+    async with test_session_factory() as session:
+        await session.execute(
+            text(
+                """
+                TRUNCATE TABLE
+                    time_entries,
+                    tasks,
+                    projects,
+                    users
+                RESTART IDENTITY CASCADE
+                """
+            )
+        )
+
+        await session.commit()
+
+        yield session
 
 
 @pytest_asyncio.fixture

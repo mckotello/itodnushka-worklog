@@ -404,3 +404,39 @@ async def test_time_entry_nonexistent_task(client):
     )
 
     assert response.status_code == 404
+import pytest
+
+@pytest.mark.asyncio
+async def test_start_timer_rejects_second_active_timer(
+        client,
+        auth_token,
+        project_factory,
+):
+    token = await auth_token(
+        "second-timer-test@example.com",
+    )
+
+    project = await project_factory(token)
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+    }
+
+    first_response = await client.post(
+        f"/projects/{project['id']}/time-entries/start",
+        headers=headers,
+        json={},
+    )
+
+    assert first_response.status_code == 201
+
+    second_response = await client.post(
+        f"/projects/{project['id']}/time-entries/start",
+        headers=headers,
+        json={},
+    )
+
+    assert second_response.status_code == 409
+    assert second_response.json() == {
+        "detail": "A timer is already running for this project",
+    }

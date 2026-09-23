@@ -1,12 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user, get_db
-from app.models.project import Project
 from app.models.task import Task
 from app.models.user import User
 from app.schemas.task import TaskCreate, TaskResponse, TaskUpdate
+from app.services.task_service import (
+    get_project_tasks,
+    get_user_project,
+    get_user_task,
+)
 
 
 router = APIRouter(
@@ -26,14 +29,11 @@ async def create_task(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
-    result = await session.execute(
-        select(Project).where(
-            Project.id == project_id,
-            Project.user_id == current_user.id,
-        )
+    project = await get_user_project(
+        session=session,
+        project_id=project_id,
+        user=current_user,
     )
-
-    project = result.scalar_one_or_none()
 
     if project is None:
         raise HTTPException(
@@ -63,14 +63,11 @@ async def get_tasks(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
-    result = await session.execute(
-        select(Project).where(
-            Project.id == project_id,
-            Project.user_id == current_user.id,
-        )
+    project = await get_user_project(
+        session=session,
+        project_id=project_id,
+        user=current_user,
     )
-
-    project = result.scalar_one_or_none()
 
     if project is None:
         raise HTTPException(
@@ -78,11 +75,10 @@ async def get_tasks(
             detail="Project not found",
         )
 
-    result = await session.execute(
-        select(Task).where(Task.project_id == project_id)
+    return await get_project_tasks(
+        session=session,
+        project_id=project_id,
     )
-
-    return result.scalars().all()
 
 
 @router.put(
@@ -96,17 +92,12 @@ async def update_task(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
-    result = await session.execute(
-        select(Task)
-        .join(Project)
-        .where(
-            Task.id == task_id,
-            Task.project_id == project_id,
-            Project.user_id == current_user.id,
-        )
+    task = await get_user_task(
+        session=session,
+        project_id=project_id,
+        task_id=task_id,
+        user=current_user,
     )
-
-    task = result.scalar_one_or_none()
 
     if task is None:
         raise HTTPException(
@@ -124,6 +115,7 @@ async def update_task(
 
     return task
 
+
 @router.delete(
     "/{task_id}",
     status_code=204,
@@ -134,17 +126,12 @@ async def delete_task(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
-    result = await session.execute(
-        select(Task)
-        .join(Project)
-        .where(
-            Task.id == task_id,
-            Task.project_id == project_id,
-            Project.user_id == current_user.id,
-        )
+    task = await get_user_task(
+        session=session,
+        project_id=project_id,
+        task_id=task_id,
+        user=current_user,
     )
-
-    task = result.scalar_one_or_none()
 
     if task is None:
         raise HTTPException(
