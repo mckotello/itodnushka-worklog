@@ -13,16 +13,21 @@ sys.path.insert(
     str(Path(__file__).resolve().parent.parent),
 )
 
-os.environ["DATABASE_URL"] = (
-    "postgresql+asyncpg://worklog:worklog@postgres_test:5432/worklog_test"
+
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql+asyncpg://worklog:worklog@postgres_test:5432/worklog_test",
 )
+
+os.environ["DATABASE_URL"] = DATABASE_URL
+
 
 from app.main import app
 from app.api import dependencies
 
 
 test_engine = create_async_engine(
-    os.environ["DATABASE_URL"],
+    DATABASE_URL,
     poolclass=NullPool,
 )
 
@@ -71,7 +76,10 @@ async def auth_token(client):
 
 @pytest_asyncio.fixture
 async def project_factory(client):
-    async def _create(token: str, name: str = "Test Project"):
+    async def _create(
+        token: str,
+        name: str = "Test Project",
+    ):
         response = await client.post(
             "/projects/",
             headers={
@@ -90,6 +98,8 @@ async def project_factory(client):
         return response.json()
 
     return _create
+
+
 @pytest_asyncio.fixture
 async def task_factory(client):
     async def _create(
