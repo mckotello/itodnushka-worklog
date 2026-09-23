@@ -411,10 +411,11 @@ async def test_project_delete_isolation(
 
     assert response.status_code == 200
 
+
 @pytest.mark.asyncio
 async def test_project_creation_rejects_negative_budget(
-        client,
-        auth_token,
+    client,
+    auth_token,
 ):
     token = await auth_token(
         f"negative-budget-{uuid.uuid4()}@example.com",
@@ -434,10 +435,11 @@ async def test_project_creation_rejects_negative_budget(
 
     assert response.status_code == 422
 
+
 @pytest.mark.asyncio
 async def test_project_creation_rejects_negative_hourly_rate(
-        client,
-        auth_token,
+    client,
+    auth_token,
 ):
     token = await auth_token(
         f"negative-rate-{uuid.uuid4()}@example.com",
@@ -456,3 +458,62 @@ async def test_project_creation_rejects_negative_hourly_rate(
     )
 
     assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_create_project_rejects_empty_name(client, auth_token):
+    token = await auth_token(
+        f"empty-name-{uuid.uuid4()}@example.com"
+    )
+
+    response = await client.post(
+        "/projects/",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+        json={
+            "name": "   ",
+        },
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_create_project_rejects_invalid_status(client, auth_token):
+    token = await auth_token(
+        f"invalid-status-{uuid.uuid4()}@example.com"
+    )
+
+    response = await client.post(
+        "/projects/",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+        json={
+            "name": "Test Project",
+            "status": "invalid",
+        },
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_create_project_strips_name(client, auth_token):
+    token = await auth_token(
+        f"strip-name-{uuid.uuid4()}@example.com"
+    )
+
+    response = await client.post(
+        "/projects/",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+        json={
+            "name": "  Test Project  ",
+        },
+    )
+
+    assert response.status_code == 201
+    assert response.json()["name"] == "Test Project"

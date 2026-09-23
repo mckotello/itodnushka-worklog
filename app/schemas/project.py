@@ -1,7 +1,15 @@
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+
+ProjectStatus = Literal[
+    "active",
+    "completed",
+    "archived",
+]
 
 
 class ProjectCreate(BaseModel):
@@ -9,8 +17,21 @@ class ProjectCreate(BaseModel):
     client_name: str | None = None
     budget: Decimal | None = Field(default=None, ge=0)
     hourly_rate: Decimal | None = Field(default=None, ge=0)
-    status: str = "active"
+    status: ProjectStatus = "active"
     deadline: date | None = None
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, value: str) -> str:
+        value = value.strip()
+
+        if not value:
+            raise ValueError("Project name cannot be empty")
+
+        if len(value) > 255:
+            raise ValueError("Project name must be 255 characters or less")
+
+        return value
 
 
 class ProjectUpdate(BaseModel):
@@ -18,8 +39,24 @@ class ProjectUpdate(BaseModel):
     client_name: str | None = None
     budget: Decimal | None = Field(default=None, ge=0)
     hourly_rate: Decimal | None = Field(default=None, ge=0)
-    status: str | None = None
+    status: ProjectStatus | None = None
     deadline: date | None = None
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+
+        value = value.strip()
+
+        if not value:
+            raise ValueError("Project name cannot be empty")
+
+        if len(value) > 255:
+            raise ValueError("Project name must be 255 characters or less")
+
+        return value
 
 
 class ProjectResponse(BaseModel):
