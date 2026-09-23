@@ -92,3 +92,10 @@ class DashboardResponse(BaseModel):
     total_budget: Decimal
     total_cost: Decimal
     budget_used_percent: Decimal | None
+
+class ProjectListResponse(BaseModel):
+    items: list[ProjectResponse]
+    total: int
+    page: int
+    limit: int
+    pages: int

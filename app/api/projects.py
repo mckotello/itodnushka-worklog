@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user, get_db
@@ -9,6 +9,7 @@ from app.models.user import User
 from app.schemas.project import (
     DashboardResponse,
     ProjectCreate,
+    ProjectListResponse,
     ProjectResponse,
     ProjectSummaryResponse,
     ProjectUpdate,
@@ -49,16 +50,41 @@ async def create_project(
     return project
 
 
-@router.get("/", response_model=list[ProjectResponse])
+@router.get("/", response_model=ProjectListResponse)
 async def get_projects(
+    page: int = Query(default=1, ge=1),
+    limit: int = Query(default=20, ge=1, le=100),
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
-    result = await session.execute(
-        select(Project).where(Project.user_id == current_user.id)
+    count_result = await session.execute(
+        select(func.count(Project.id))
+        .where(Project.user_id == current_user.id)
     )
 
-    return result.scalars().all()
+    total = count_result.scalar_one()
+
+    offset = (page - 1) * limit
+
+    result = await session.execute(
+        select(Project)
+        .where(Project.user_id == current_user.id)
+        .order_by(Project.id.desc())
+        .offset(offset)
+        .limit(limit)
+    )
+
+    projects = list(result.scalars().all())
+
+    pages = (total + limit - 1) // limit if total > 0 else 0
+
+    return ProjectListResponse(
+        items=projects,
+        total=total,
+        page=page,
+        limit=limit,
+        pages=pages,
+    )
 
 
 @router.get(

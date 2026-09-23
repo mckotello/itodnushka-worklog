@@ -116,10 +116,16 @@ async def test_project_list(client, auth_token, project_factory):
 
     assert response.status_code == 200
 
-    projects = response.json()
+    data = response.json()
 
-    assert isinstance(projects, list)
-    assert any(project["id"] == project_id for project in projects)
+    assert data["total"] == 1
+    assert data["page"] == 1
+    assert data["limit"] == 20
+    assert data["pages"] == 1
+
+    assert len(data["items"]) == 1
+    assert data["items"][0]["id"] == project_id
+    assert data["items"][0]["name"] == "List Project"
 
 
 @pytest.mark.asyncio
@@ -517,3 +523,151 @@ async def test_create_project_strips_name(client, auth_token):
 
     assert response.status_code == 201
     assert response.json()["name"] == "Test Project"
+
+@pytest.mark.asyncio
+async def test_project_list_pagination(
+        client,
+        auth_token,
+        project_factory,
+):
+    token = await auth_token(
+        f"pagination-{uuid.uuid4()}@example.com"
+    )
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+    }
+
+    for index in range(5):
+        await project_factory(
+            token,
+            f"Pagination Project {index}",
+        )
+
+    response = await client.get(
+        "/projects/?page=1&limit=2",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["total"] == 5
+    assert data["page"] == 1
+    assert data["limit"] == 2
+    assert data["pages"] == 3
+    assert len(data["items"]) == 2
+
+@pytest.mark.asyncio
+async def test_project_list_pagination_second_page(
+        client,
+        auth_token,
+        project_factory,
+):
+    token = await auth_token(
+        f"pagination-page-2-{uuid.uuid4()}@example.com"
+    )
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+    }
+
+    projects = []
+
+    for index in range(5):
+        project = await project_factory(
+            token,
+            f"Pagination Project {index}",
+        )
+        projects.append(project)
+
+    response = await client.get(
+        "/projects/?page=2&limit=2",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["total"] == 5
+    assert data["page"] == 2
+    assert data["limit"] == 2
+    assert data["pages"] == 3
+
+    assert len(data["items"]) == 2
+
+    assert data["items"][0]["id"] == projects[2]["id"]
+    assert data["items"][1]["id"] == projects[1]["id"]
+
+@pytest.mark.asyncio
+async def test_project_list_pagination_out_of_range(
+        client,
+        auth_token,
+        project_factory,
+):
+    token = await auth_token(
+        f"pagination-out-of-range-{uuid.uuid4()}@example.com"
+    )
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+    }
+
+    for index in range(5):
+        await project_factory(
+            token,
+            f"Pagination Project {index}",
+        )
+
+    response = await client.get(
+        "/projects/?page=4&limit=2",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["total"] == 5
+    assert data["page"] == 4
+    assert data["limit"] == 2
+    assert data["pages"] == 3
+    assert data["items"] == []
+
+@pytest.mark.asyncio
+async def test_project_list_rejects_invalid_page(
+        client,
+        auth_token,
+):
+    token = await auth_token(
+        f"pagination-invalid-page-{uuid.uuid4()}@example.com"
+    )
+
+    response = await client.get(
+        "/projects/?page=0",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+    )
+
+    assert response.status_code == 422
+
+@pytest.mark.asyncio
+async def test_project_list_rejects_invalid_limit(
+        client,
+        auth_token,
+):
+    token = await auth_token(
+        f"pagination-invalid-limit-{uuid.uuid4()}@example.com"
+    )
+
+    response = await client.get(
+        "/projects/?limit=101",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+    )
+
+    assert response.status_code == 422
