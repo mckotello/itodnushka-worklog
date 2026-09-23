@@ -8,21 +8,6 @@ from app.models.time_entry import TimeEntry
 from app.models.user import User
 
 
-async def get_user_project(
-    session: AsyncSession,
-    project_id: int,
-    user: User,
-) -> Project | None:
-    result = await session.execute(
-        select(Project).where(
-            Project.id == project_id,
-            Project.user_id == user.id,
-        )
-    )
-
-    return result.scalar_one_or_none()
-
-
 async def calculate_project_summary(
     session: AsyncSession,
     project: Project,

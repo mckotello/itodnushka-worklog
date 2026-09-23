@@ -7,10 +7,10 @@ from sqlalchemy import select
 from app.models.project import Project
 from app.models.time_entry import TimeEntry
 from app.models.user import User
+from app.services.project_access_service import get_user_project
 from app.services.project_service import (
     calculate_dashboard,
     calculate_project_summary,
-    get_user_project,
 )
 from app.security import hash_password
 

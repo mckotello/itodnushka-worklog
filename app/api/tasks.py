@@ -5,9 +5,9 @@ from app.api.dependencies import get_current_user, get_db
 from app.models.task import Task
 from app.models.user import User
 from app.schemas.task import TaskCreate, TaskResponse, TaskUpdate
+from app.services.project_access_service import get_user_project
 from app.services.task_service import (
     get_project_tasks,
-    get_user_project,
     get_user_task,
 )
 

@@ -8,21 +8,7 @@ from app.models.project import Project
 from app.models.task import Task
 from app.models.time_entry import TimeEntry
 from app.models.user import User
-
-
-async def get_user_project(
-    session: AsyncSession,
-    project_id: int,
-    user: User,
-) -> Project | None:
-    result = await session.execute(
-        select(Project).where(
-            Project.id == project_id,
-            Project.user_id == user.id,
-        )
-    )
-
-    return result.scalar_one_or_none()
+from app.services.project_access_service import get_user_project
 
 
 async def get_project_task(

@@ -13,10 +13,10 @@ from app.schemas.project import (
     ProjectSummaryResponse,
     ProjectUpdate,
 )
+from app.services.project_access_service import get_user_project
 from app.services.project_service import (
     calculate_dashboard,
     calculate_project_summary,
-    get_user_project,
 )
 
 

@@ -4,9 +4,9 @@ from app.models.project import Project
 from app.models.task import Task
 from app.models.user import User
 from app.security import hash_password
+from app.services.project_access_service import get_user_project
 from app.services.task_service import (
     get_project_tasks,
-    get_user_project,
     get_user_task,
 )
 

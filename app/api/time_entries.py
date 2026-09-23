@@ -13,6 +13,7 @@ from app.schemas.time_entry import (
     TimeEntryResponse,
     TimerStart,
 )
+from app.services.project_access_service import get_user_project
 from app.services.time_entry_service import (
     calculate_duration_seconds,
     calculate_time_cost,
@@ -20,7 +21,6 @@ from app.services.time_entry_service import (
     get_active_user_timer,
     get_project_task,
     get_project_time_entries,
-    get_user_project,
     get_user_time_entry,
 )
 
