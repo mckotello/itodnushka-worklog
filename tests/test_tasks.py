@@ -625,3 +625,182 @@ async def test_user_cannot_access_another_users_task(
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Task not found"
+
+@pytest.mark.asyncio
+async def test_user_cannot_create_task_in_another_users_project(
+        client,
+        auth_token,
+        project_factory,
+        db_session,
+):
+    owner_token = await auth_token("task-owner@example.com")
+    other_user_token = await auth_token("task-other@example.com")
+
+    project = await project_factory(
+        owner_token,
+        name="Owner Project",
+    )
+
+    response = await client.post(
+        f"/projects/{project['id']}/tasks/",
+        headers={
+            "Authorization": f"Bearer {other_user_token}",
+        },
+        json={
+            "name": "Unauthorized Task",
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Project not found"
+
+@pytest.mark.asyncio
+async def test_create_task_and_list_project_tasks(
+        client,
+        auth_token,
+        project_factory,
+        db_session,
+):
+    token = await auth_token("task-list-test@example.com")
+
+    project = await project_factory(
+        token,
+        name="Task List Project",
+    )
+
+    response = await client.post(
+        f"/projects/{project['id']}/tasks/",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+        json={
+            "name": "First Task",
+        },
+    )
+
+    assert response.status_code == 201
+
+    task = response.json()
+
+    assert task["project_id"] == project["id"]
+    assert task["name"] == "First Task"
+    assert task["status"] == "todo"
+
+    response = await client.get(
+        f"/projects/{project['id']}/tasks/",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["total"] == 1
+    assert data["page"] == 1
+    assert data["limit"] == 20
+    assert data["pages"] == 1
+    assert len(data["items"]) == 1
+    assert data["items"][0]["id"] == task["id"]
+    assert data["items"][0]["name"] == "First Task"
+
+@pytest.mark.asyncio
+async def test_update_task_status(
+        client,
+        auth_token,
+        project_factory,
+        db_session,
+):
+    token = await auth_token("task-update-test@example.com")
+
+    project = await project_factory(
+        token,
+        name="Task Update Project",
+    )
+
+    response = await client.post(
+        f"/projects/{project['id']}/tasks/",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+        json={
+            "name": "Task To Update",
+        },
+    )
+
+    assert response.status_code == 201
+
+    task = response.json()
+
+    assert task["status"] == "todo"
+
+    response = await client.put(
+        f"/projects/{project['id']}/tasks/{task['id']}",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+        json={
+            "status": "in_progress",
+        },
+    )
+
+    assert response.status_code == 200
+
+    updated_task = response.json()
+
+    assert updated_task["id"] == task["id"]
+    assert updated_task["project_id"] == project["id"]
+    assert updated_task["name"] == "Task To Update"
+    assert updated_task["status"] == "in_progress"
+
+@pytest.mark.asyncio
+async def test_delete_task(
+        client,
+        auth_token,
+        project_factory,
+        db_session,
+):
+    token = await auth_token("task-delete-test@example.com")
+
+    project = await project_factory(
+        token,
+        name="Task Delete Project",
+    )
+
+    response = await client.post(
+        f"/projects/{project['id']}/tasks/",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+        json={
+            "name": "Task To Delete",
+        },
+    )
+
+    assert response.status_code == 201
+
+    task = response.json()
+
+    response = await client.delete(
+        f"/projects/{project['id']}/tasks/{task['id']}",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+    )
+
+    assert response.status_code == 204
+
+    response = await client.get(
+        f"/projects/{project['id']}/tasks/",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["total"] == 0
+    assert data["items"] == []
