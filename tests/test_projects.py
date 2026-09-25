@@ -804,3 +804,199 @@ async def test_dashboard_calculates_projects_hours_and_cost(
     assert data["total_budget"] == "200000.00"
     assert data["total_cost"] == "10500.000"
     assert data["budget_used_percent"] == "5.2500"
+
+@pytest.mark.asyncio
+async def test_project_list_pagination(
+        client,
+        auth_token,
+        project_factory,
+        db_session,
+):
+    token = await auth_token("project-pagination-test@example.com")
+
+    for index in range(5):
+        response = await project_factory(
+            token,
+            name=f"Project {index + 1}",
+        )
+
+    response = await client.get(
+        "/projects/?page=2&limit=2",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["total"] == 5
+    assert data["page"] == 2
+    assert data["limit"] == 2
+    assert data["pages"] == 3
+    assert len(data["items"]) == 2
+
+@pytest.mark.asyncio
+async def test_project_list_pagination_last_page(
+        client,
+        auth_token,
+        project_factory,
+        db_session,
+):
+    token = await auth_token("project-pagination-last@example.com")
+
+    for index in range(5):
+        await project_factory(
+            token,
+            name=f"Project {index + 1}",
+        )
+
+    response = await client.get(
+        "/projects/?page=3&limit=2",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["total"] == 5
+    assert data["page"] == 3
+    assert data["limit"] == 2
+    assert data["pages"] == 3
+    assert len(data["items"]) == 1
+
+@pytest.mark.asyncio
+async def test_project_list_pagination_page_out_of_range(
+        client,
+        auth_token,
+        project_factory,
+        db_session,
+):
+    token = await auth_token("project-pagination-out-of-range@example.com")
+
+    for index in range(3):
+        await project_factory(
+            token,
+            name=f"Project {index + 1}",
+        )
+
+    response = await client.get(
+        "/projects/?page=3&limit=2",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["total"] == 3
+    assert data["page"] == 3
+    assert data["limit"] == 2
+    assert data["pages"] == 2
+    assert data["items"] == []
+
+@pytest.mark.asyncio
+async def test_create_project_rejects_empty_name(client, auth_token):
+    token = await auth_token("empty-name@example.com")
+
+    response = await client.post(
+        "/projects/",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"name": "   "},
+    )
+
+    assert response.status_code == 422
+
+@pytest.mark.asyncio
+async def test_create_project_rejects_too_long_name(client, auth_token):
+    token = await auth_token("long-name@example.com")
+
+    response = await client.post(
+        "/projects/",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"name": "a" * 256},
+    )
+
+    assert response.status_code == 422
+
+@pytest.mark.asyncio
+async def test_create_project_rejects_negative_budget(client, auth_token):
+    token = await auth_token("negative-budget@example.com")
+
+    response = await client.post(
+        "/projects/",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "name": "Negative Budget",
+            "budget": -1,
+        },
+    )
+
+    assert response.status_code == 422
+
+@pytest.mark.asyncio
+async def test_create_project_rejects_negative_hourly_rate(
+    client,
+    auth_token,
+):
+    token = await auth_token("negative-rate@example.com")
+
+    response = await client.post(
+        "/projects/",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "name": "Negative Rate",
+            "hourly_rate": -1,
+        },
+    )
+
+    assert response.status_code == 422
+
+@pytest.mark.asyncio
+async def test_create_project_strips_name(client, auth_token):
+    token = await auth_token("strip-name@example.com")
+
+    response = await client.post(
+        "/projects/",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "name": "   My Project   ",
+        },
+    )
+
+    assert response.status_code == 201
+    assert response.json()["name"] == "My Project"
+
+@pytest.mark.asyncio
+async def test_project_list_rejects_invalid_page(
+    client,
+    auth_token,
+):
+    token = await auth_token("invalid-page@example.com")
+
+    response = await client.get(
+        "/projects/?page=0&limit=10",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 422
+
+@pytest.mark.asyncio
+async def test_project_list_rejects_invalid_limit(
+    client,
+    auth_token,
+):
+    token = await auth_token("invalid-limit@example.com")
+
+    response = await client.get(
+        "/projects/?page=1&limit=0",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 422

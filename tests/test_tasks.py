@@ -3,15 +3,26 @@ import uuid
 import pytest
 
 
-async def create_task(client, token: str, project_id: int, name: str):
+async def create_task(
+    client,
+    token: str,
+    project_id: int,
+    name: str,
+    status: str | None = None,
+):
+    payload = {
+        "name": name,
+    }
+
+    if status is not None:
+        payload["status"] = status
+
     response = await client.post(
         f"/projects/{project_id}/tasks/",
         headers={
             "Authorization": f"Bearer {token}",
         },
-        json={
-            "name": name,
-        },
+        json=payload,
     )
 
     assert response.status_code == 201
@@ -60,6 +71,7 @@ async def test_task_creation_and_project_isolation(
     )
 
     assert response.status_code == 404
+    assert response.json()["detail"] == "Project not found"
 
     response = await client.post(
         f"/projects/{project_id}/tasks/",
@@ -72,6 +84,7 @@ async def test_task_creation_and_project_isolation(
     )
 
     assert response.status_code == 404
+    assert response.json()["detail"] == "Project not found"
 
     response = await client.put(
         f"/projects/{project_id}/tasks/{task_id}",
@@ -84,6 +97,7 @@ async def test_task_creation_and_project_isolation(
     )
 
     assert response.status_code == 404
+    assert response.json()["detail"] == "Task not found"
 
     response = await client.delete(
         f"/projects/{project_id}/tasks/{task_id}",
@@ -93,10 +107,15 @@ async def test_task_creation_and_project_isolation(
     )
 
     assert response.status_code == 404
+    assert response.json()["detail"] == "Task not found"
 
 
 @pytest.mark.asyncio
-async def test_task_list(client, auth_token, project_factory):
+async def test_task_list(
+    client,
+    auth_token,
+    project_factory,
+):
     token = await auth_token(
         f"task-list-{uuid.uuid4()}@example.com",
     )
@@ -143,7 +162,11 @@ async def test_task_list(client, auth_token, project_factory):
 
 
 @pytest.mark.asyncio
-async def test_task_update(client, auth_token, project_factory):
+async def test_task_update(
+    client,
+    auth_token,
+    project_factory,
+):
     token = await auth_token(
         f"task-update-{uuid.uuid4()}@example.com",
     )
@@ -153,19 +176,15 @@ async def test_task_update(client, auth_token, project_factory):
         "Task Test Project",
     )
 
-    project_id = project["id"]
-
     task = await create_task(
         client,
         token,
-        project_id,
+        project["id"],
         "Original task",
     )
 
-    task_id = task["id"]
-
     response = await client.put(
-        f"/projects/{project_id}/tasks/{task_id}",
+        f"/projects/{project['id']}/tasks/{task['id']}",
         headers={
             "Authorization": f"Bearer {token}",
         },
@@ -179,14 +198,60 @@ async def test_task_update(client, auth_token, project_factory):
 
     updated_task = response.json()
 
-    assert updated_task["id"] == task_id
-    assert updated_task["project_id"] == project_id
+    assert updated_task["id"] == task["id"]
+    assert updated_task["project_id"] == project["id"]
     assert updated_task["name"] == "Updated task"
     assert updated_task["status"] == "in_progress"
 
 
 @pytest.mark.asyncio
-async def test_task_delete(client, auth_token, project_factory):
+async def test_task_update_status_preserves_name(
+    client,
+    auth_token,
+    project_factory,
+):
+    token = await auth_token(
+        f"task-partial-update-{uuid.uuid4()}@example.com",
+    )
+
+    project = await project_factory(
+        token,
+        "Task Project",
+    )
+
+    task = await create_task(
+        client,
+        token,
+        project["id"],
+        "Important Task",
+    )
+
+    response = await client.put(
+        f"/projects/{project['id']}/tasks/{task['id']}",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+        json={
+            "status": "done",
+        },
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["id"] == task["id"]
+    assert data["project_id"] == project["id"]
+    assert data["name"] == "Important Task"
+    assert data["status"] == "done"
+
+
+@pytest.mark.asyncio
+async def test_task_delete(
+    client,
+    auth_token,
+    project_factory,
+):
     token = await auth_token(
         f"task-delete-{uuid.uuid4()}@example.com",
     )
@@ -196,19 +261,15 @@ async def test_task_delete(client, auth_token, project_factory):
         "Task Test Project",
     )
 
-    project_id = project["id"]
-
     task = await create_task(
         client,
         token,
-        project_id,
+        project["id"],
         "Task to delete",
     )
 
-    task_id = task["id"]
-
     response = await client.delete(
-        f"/projects/{project_id}/tasks/{task_id}",
+        f"/projects/{project['id']}/tasks/{task['id']}",
         headers={
             "Authorization": f"Bearer {token}",
         },
@@ -217,7 +278,7 @@ async def test_task_delete(client, auth_token, project_factory):
     assert response.status_code == 204
 
     response = await client.get(
-        f"/projects/{project_id}/tasks/",
+        f"/projects/{project['id']}/tasks/",
         headers={
             "Authorization": f"Bearer {token}",
         },
@@ -246,10 +307,8 @@ async def test_task_creation_requires_name(
         "Task Validation Project",
     )
 
-    project_id = project["id"]
-
     response = await client.post(
-        f"/projects/{project_id}/tasks/",
+        f"/projects/{project['id']}/tasks/",
         headers={
             "Authorization": f"Bearer {token}",
         },
@@ -260,42 +319,15 @@ async def test_task_creation_requires_name(
 
 
 @pytest.mark.asyncio
-async def test_task_project_not_found(client, auth_token):
-    token = await auth_token(
-        f"task-project-not-found-{uuid.uuid4()}@example.com",
-    )
-
-    response = await client.post(
-        "/projects/999999999/tasks/",
-        headers={
-            "Authorization": f"Bearer {token}",
-        },
-        json={
-            "name": "Task for missing project",
-        },
-    )
-
-    assert response.status_code == 404
-
-
-@pytest.mark.asyncio
-async def test_task_requires_authentication(client):
-    response = await client.get(
-        "/projects/999999999/tasks/",
-    )
-
-    assert response.status_code == 401
-
-
-@pytest.mark.asyncio
 async def test_create_task_rejects_empty_name(
     client,
     auth_token,
     project_factory,
 ):
     token = await auth_token(
-        f"empty-task-name-{uuid.uuid4()}@example.com"
+        f"empty-task-name-{uuid.uuid4()}@example.com",
     )
+
     project = await project_factory(token)
 
     response = await client.post(
@@ -318,8 +350,9 @@ async def test_create_task_rejects_invalid_status(
     project_factory,
 ):
     token = await auth_token(
-        f"invalid-task-status-{uuid.uuid4()}@example.com"
+        f"invalid-task-status-{uuid.uuid4()}@example.com",
     )
+
     project = await project_factory(token)
 
     response = await client.post(
@@ -343,8 +376,9 @@ async def test_create_task_rejects_too_long_name(
     project_factory,
 ):
     token = await auth_token(
-        f"long-task-name-{uuid.uuid4()}@example.com"
+        f"long-task-name-{uuid.uuid4()}@example.com",
     )
+
     project = await project_factory(token)
 
     response = await client.post(
@@ -367,8 +401,9 @@ async def test_create_task_strips_name(
     project_factory,
 ):
     token = await auth_token(
-        f"strip-task-name-{uuid.uuid4()}@example.com"
+        f"strip-task-name-{uuid.uuid4()}@example.com",
     )
+
     project = await project_factory(token)
 
     response = await client.post(
@@ -384,11 +419,87 @@ async def test_create_task_strips_name(
     assert response.status_code == 201
     assert response.json()["name"] == "Test Task"
 
+
+@pytest.mark.asyncio
+async def test_task_project_not_found(
+    client,
+    auth_token,
+):
+    token = await auth_token(
+        f"task-project-not-found-{uuid.uuid4()}@example.com",
+    )
+
+    response = await client.post(
+        "/projects/999999999/tasks/",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+        json={
+            "name": "Task for missing project",
+        },
+    )
+
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_create_task_in_nonexistent_project(
+    client,
+    auth_token,
+):
+    token = await auth_token(
+        f"task-no-project-{uuid.uuid4()}@example.com",
+    )
+
+    response = await client.post(
+        "/projects/999999/tasks/",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+        json={
+            "name": "Orphan Task",
+        },
+    )
+
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_task_requires_authentication(client):
+    response = await client.get(
+        "/projects/999999999/tasks/",
+    )
+
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_task_list_requires_authentication(
+    client,
+    auth_token,
+    project_factory,
+):
+    token = await auth_token(
+        f"task-list-auth-{uuid.uuid4()}@example.com",
+    )
+
+    project = await project_factory(
+        token,
+        "Protected Project",
+    )
+
+    response = await client.get(
+        f"/projects/{project['id']}/tasks/",
+    )
+
+    assert response.status_code == 401
+
+
 @pytest.mark.asyncio
 async def test_task_list_pagination(
-        client,
-        auth_token,
-        project_factory,
+    client,
+    auth_token,
+    project_factory,
 ):
     token = await auth_token(
         f"task-pagination-{uuid.uuid4()}@example.com",
@@ -399,18 +510,16 @@ async def test_task_list_pagination(
         "Task Pagination Project",
     )
 
-    project_id = project["id"]
-
     for i in range(5):
         await create_task(
             client,
             token,
-            project_id,
+            project["id"],
             f"Task {i + 1}",
         )
 
     response = await client.get(
-        f"/projects/{project_id}/tasks/?page=1&limit=2",
+        f"/projects/{project['id']}/tasks/?page=1&limit=2",
         headers={
             "Authorization": f"Bearer {token}",
         },
@@ -426,11 +535,12 @@ async def test_task_list_pagination(
     assert data["pages"] == 3
     assert len(data["items"]) == 2
 
+
 @pytest.mark.asyncio
 async def test_task_list_pagination_second_page(
-        client,
-        auth_token,
-        project_factory,
+    client,
+    auth_token,
+    project_factory,
 ):
     token = await auth_token(
         f"task-pagination-page2-{uuid.uuid4()}@example.com",
@@ -441,8 +551,6 @@ async def test_task_list_pagination_second_page(
         "Task Pagination Page 2 Project",
     )
 
-    project_id = project["id"]
-
     created_tasks = []
 
     for i in range(5):
@@ -450,13 +558,13 @@ async def test_task_list_pagination_second_page(
             await create_task(
                 client,
                 token,
-                project_id,
+                project["id"],
                 f"Task {i + 1}",
             )
         )
 
     response = await client.get(
-        f"/projects/{project_id}/tasks/?page=2&limit=2",
+        f"/projects/{project['id']}/tasks/?page=2&limit=2",
         headers={
             "Authorization": f"Bearer {token}",
         },
@@ -475,11 +583,12 @@ async def test_task_list_pagination_second_page(
     assert data["items"][0]["id"] == created_tasks[2]["id"]
     assert data["items"][1]["id"] == created_tasks[1]["id"]
 
+
 @pytest.mark.asyncio
 async def test_task_list_pagination_out_of_range(
-        client,
-        auth_token,
-        project_factory,
+    client,
+    auth_token,
+    project_factory,
 ):
     token = await auth_token(
         f"task-pagination-range-{uuid.uuid4()}@example.com",
@@ -490,18 +599,16 @@ async def test_task_list_pagination_out_of_range(
         "Task Pagination Range Project",
     )
 
-    project_id = project["id"]
-
     for i in range(5):
         await create_task(
             client,
             token,
-            project_id,
+            project["id"],
             f"Task {i + 1}",
         )
 
     response = await client.get(
-        f"/projects/{project_id}/tasks/?page=4&limit=2",
+        f"/projects/{project['id']}/tasks/?page=4&limit=2",
         headers={
             "Authorization": f"Bearer {token}",
         },
@@ -517,11 +624,12 @@ async def test_task_list_pagination_out_of_range(
     assert data["pages"] == 3
     assert data["items"] == []
 
+
 @pytest.mark.asyncio
 async def test_task_list_rejects_invalid_page(
-        client,
-        auth_token,
-        project_factory,
+    client,
+    auth_token,
+    project_factory,
 ):
     token = await auth_token(
         f"task-pagination-invalid-page-{uuid.uuid4()}@example.com",
@@ -541,11 +649,12 @@ async def test_task_list_rejects_invalid_page(
 
     assert response.status_code == 422
 
+
 @pytest.mark.asyncio
 async def test_task_list_rejects_invalid_limit(
-        client,
-        auth_token,
-        project_factory,
+    client,
+    auth_token,
+    project_factory,
 ):
     token = await auth_token(
         f"task-pagination-invalid-limit-{uuid.uuid4()}@example.com",
@@ -565,38 +674,36 @@ async def test_task_list_rejects_invalid_limit(
 
     assert response.status_code == 422
 
+
 @pytest.mark.asyncio
 async def test_user_cannot_access_another_users_task(
-        client,
-        auth_token,
-        project_factory,
+    client,
+    auth_token,
+    project_factory,
 ):
-    token_1 = await auth_token("user1@example.com")
-    token_2 = await auth_token("user2@example.com")
+    owner_token = await auth_token(
+        f"task-access-owner-{uuid.uuid4()}@example.com",
+    )
+    other_token = await auth_token(
+        f"task-access-other-{uuid.uuid4()}@example.com",
+    )
 
     project = await project_factory(
-        token_1,
-        name="Private Project",
+        owner_token,
+        name="Owner Project",
     )
 
-    response = await client.post(
-        f"/projects/{project['id']}/tasks/",
-        headers={
-            "Authorization": f"Bearer {token_1}",
-        },
-        json={
-            "name": "Private Task",
-        },
+    task = await create_task(
+        client,
+        owner_token,
+        project["id"],
+        "Private Task",
     )
-
-    assert response.status_code == 201
-
-    task = response.json()
 
     response = await client.get(
         f"/projects/{project['id']}/tasks/",
         headers={
-            "Authorization": f"Bearer {token_2}",
+            "Authorization": f"Bearer {other_token}",
         },
     )
 
@@ -606,7 +713,7 @@ async def test_user_cannot_access_another_users_task(
     response = await client.put(
         f"/projects/{project['id']}/tasks/{task['id']}",
         headers={
-            "Authorization": f"Bearer {token_2}",
+            "Authorization": f"Bearer {other_token}",
         },
         json={
             "name": "Hacked Task",
@@ -619,22 +726,26 @@ async def test_user_cannot_access_another_users_task(
     response = await client.delete(
         f"/projects/{project['id']}/tasks/{task['id']}",
         headers={
-            "Authorization": f"Bearer {token_2}",
+            "Authorization": f"Bearer {other_token}",
         },
     )
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Task not found"
 
+
 @pytest.mark.asyncio
 async def test_user_cannot_create_task_in_another_users_project(
-        client,
-        auth_token,
-        project_factory,
-        db_session,
+    client,
+    auth_token,
+    project_factory,
 ):
-    owner_token = await auth_token("task-owner@example.com")
-    other_user_token = await auth_token("task-other@example.com")
+    owner_token = await auth_token(
+        f"task-create-owner-{uuid.uuid4()}@example.com",
+    )
+    other_token = await auth_token(
+        f"task-create-other-{uuid.uuid4()}@example.com",
+    )
 
     project = await project_factory(
         owner_token,
@@ -644,43 +755,38 @@ async def test_user_cannot_create_task_in_another_users_project(
     response = await client.post(
         f"/projects/{project['id']}/tasks/",
         headers={
-            "Authorization": f"Bearer {other_user_token}",
+            "Authorization": f"Bearer {other_token}",
         },
         json={
-            "name": "Unauthorized Task",
+            "name": "Foreign Task",
         },
     )
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Project not found"
 
+
 @pytest.mark.asyncio
 async def test_create_task_and_list_project_tasks(
-        client,
-        auth_token,
-        project_factory,
-        db_session,
+    client,
+    auth_token,
+    project_factory,
 ):
-    token = await auth_token("task-list-test@example.com")
+    token = await auth_token(
+        f"task-list-test-{uuid.uuid4()}@example.com",
+    )
 
     project = await project_factory(
         token,
         name="Task List Project",
     )
 
-    response = await client.post(
-        f"/projects/{project['id']}/tasks/",
-        headers={
-            "Authorization": f"Bearer {token}",
-        },
-        json={
-            "name": "First Task",
-        },
+    task = await create_task(
+        client,
+        token,
+        project["id"],
+        "First Task",
     )
-
-    assert response.status_code == 201
-
-    task = response.json()
 
     assert task["project_id"] == project["id"]
     assert task["name"] == "First Task"
@@ -705,33 +811,28 @@ async def test_create_task_and_list_project_tasks(
     assert data["items"][0]["id"] == task["id"]
     assert data["items"][0]["name"] == "First Task"
 
+
 @pytest.mark.asyncio
 async def test_update_task_status(
-        client,
-        auth_token,
-        project_factory,
-        db_session,
+    client,
+    auth_token,
+    project_factory,
 ):
-    token = await auth_token("task-update-test@example.com")
+    token = await auth_token(
+        f"task-update-status-{uuid.uuid4()}@example.com",
+    )
 
     project = await project_factory(
         token,
         name="Task Update Project",
     )
 
-    response = await client.post(
-        f"/projects/{project['id']}/tasks/",
-        headers={
-            "Authorization": f"Bearer {token}",
-        },
-        json={
-            "name": "Task To Update",
-        },
+    task = await create_task(
+        client,
+        token,
+        project["id"],
+        "Task To Update",
     )
-
-    assert response.status_code == 201
-
-    task = response.json()
 
     assert task["status"] == "todo"
 
@@ -753,54 +854,3 @@ async def test_update_task_status(
     assert updated_task["project_id"] == project["id"]
     assert updated_task["name"] == "Task To Update"
     assert updated_task["status"] == "in_progress"
-
-@pytest.mark.asyncio
-async def test_delete_task(
-        client,
-        auth_token,
-        project_factory,
-        db_session,
-):
-    token = await auth_token("task-delete-test@example.com")
-
-    project = await project_factory(
-        token,
-        name="Task Delete Project",
-    )
-
-    response = await client.post(
-        f"/projects/{project['id']}/tasks/",
-        headers={
-            "Authorization": f"Bearer {token}",
-        },
-        json={
-            "name": "Task To Delete",
-        },
-    )
-
-    assert response.status_code == 201
-
-    task = response.json()
-
-    response = await client.delete(
-        f"/projects/{project['id']}/tasks/{task['id']}",
-        headers={
-            "Authorization": f"Bearer {token}",
-        },
-    )
-
-    assert response.status_code == 204
-
-    response = await client.get(
-        f"/projects/{project['id']}/tasks/",
-        headers={
-            "Authorization": f"Bearer {token}",
-        },
-    )
-
-    assert response.status_code == 200
-
-    data = response.json()
-
-    assert data["total"] == 0
-    assert data["items"] == []
