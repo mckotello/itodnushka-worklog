@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,7 +30,7 @@ router = APIRouter(
 @router.post(
     "/",
     response_model=ProjectResponse,
-    status_code=201,
+    status_code=status.HTTP_201_CREATED,
 )
 async def create_project(
     project_data: ProjectCreate,
@@ -120,7 +120,7 @@ async def get_project_summary(
 
     if project is None:
         raise HTTPException(
-            status_code=404,
+            status_code=status.HTTP_404_NOT_FOUND,
             detail="Project not found",
         )
 
@@ -132,7 +132,10 @@ async def get_project_summary(
     return ProjectSummaryResponse(**summary)
 
 
-@router.get("/{project_id}", response_model=ProjectResponse)
+@router.get(
+    "/{project_id}",
+    response_model=ProjectResponse,
+)
 async def get_project(
     project_id: int,
     current_user: User = Depends(get_current_user),
@@ -146,14 +149,17 @@ async def get_project(
 
     if project is None:
         raise HTTPException(
-            status_code=404,
+            status_code=status.HTTP_404_NOT_FOUND,
             detail="Project not found",
         )
 
     return project
 
 
-@router.put("/{project_id}", response_model=ProjectResponse)
+@router.put(
+    "/{project_id}",
+    response_model=ProjectResponse,
+)
 async def update_project(
     project_id: int,
     project_data: ProjectUpdate,
@@ -168,7 +174,7 @@ async def update_project(
 
     if project is None:
         raise HTTPException(
-            status_code=404,
+            status_code=status.HTTP_404_NOT_FOUND,
             detail="Project not found",
         )
 
@@ -183,7 +189,10 @@ async def update_project(
     return project
 
 
-@router.delete("/{project_id}", status_code=204)
+@router.delete(
+    "/{project_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
 async def delete_project(
     project_id: int,
     current_user: User = Depends(get_current_user),
@@ -197,7 +206,7 @@ async def delete_project(
 
     if project is None:
         raise HTTPException(
-            status_code=404,
+            status_code=status.HTTP_404_NOT_FOUND,
             detail="Project not found",
         )
 
