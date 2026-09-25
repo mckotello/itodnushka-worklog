@@ -1,4 +1,3 @@
-````markdown
 # ITоднушка Worklog
 
 Сервис для учёта рабочего времени, задач и рентабельности проектов.
@@ -7,47 +6,49 @@
 
 ## Возможности
 
-- регистрация и авторизация пользователей;
-- JWT-аутентификация;
-- безопасное хранение паролей через Argon2;
-- создание и управление проектами;
-- привязка проектов к пользователям;
-- задачи внутри проектов;
-- учёт рабочего времени;
-- ручное создание временных записей;
-- запуск и остановка таймера;
-- привязка времени к задачам;
-- расчёт стоимости затраченного времени;
-- расчёт остатка бюджета проекта;
-- dashboard с общей статистикой;
-- изоляция данных между пользователями;
-- валидация входных данных;
-- автоматические тесты API.
+* регистрация и авторизация пользователей;
+* JWT-аутентификация;
+* безопасное хранение паролей через Argon2;
+* создание и управление проектами;
+* привязка проектов к пользователям;
+* задачи внутри проектов;
+* учёт рабочего времени;
+* ручное создание временных записей;
+* запуск и остановка таймера;
+* привязка времени к задачам;
+* расчёт стоимости затраченного времени;
+* расчёт остатка бюджета проекта;
+* dashboard с общей статистикой;
+* пагинация проектов, задач и временных записей;
+* изоляция данных между пользователями;
+* валидация входных данных;
+* автоматические тесты API;
+* CI через GitHub Actions.
 
 ## Стек
 
 ### Backend
 
-- Python 3.13
-- FastAPI
-- Pydantic
-- SQLAlchemy 2
-- PostgreSQL 17
-- Alembic
-- JWT
-- Argon2
+* Python 3.13
+* FastAPI
+* Pydantic
+* SQLAlchemy 2
+* PostgreSQL 17
+* Alembic
+* JWT
+* Argon2
 
 ### Testing
 
-- pytest
-- pytest-asyncio
-- HTTPX
+* pytest
+* pytest-asyncio
+* HTTPX
 
 ### Infrastructure
 
-- Docker
-- Docker Compose
-- Nginx — планируется для production-развёртывания
+* Docker
+* Docker Compose
+* GitHub Actions
 
 ## Архитектура
 
@@ -73,6 +74,12 @@ app/
 │   ├── task.py
 │   └── time_entry.py
 │
+├── services/
+│   ├── project_access_service.py
+│   ├── project_service.py
+│   ├── task_service.py
+│   └── time_entry_service.py
+│
 ├── auth.py
 ├── security.py
 ├── config.py
@@ -86,15 +93,22 @@ alembic/
 tests/
 ├── conftest.py
 ├── test_auth.py
+├── test_project_service.py
 ├── test_projects.py
+├── test_task_service.py
 ├── test_tasks.py
+├── test_time_entry_service.py
 └── test_time_entries.py
+
+.github/
+└── workflows/
+    └── tests.yml
 
 docker-compose.yml
 Dockerfile
 pyproject.toml
 alembic.ini
-````
+```
 
 ## Запуск
 
@@ -232,6 +246,29 @@ GET    /projects/{project_id}/summary
 GET    /projects/dashboard
 ```
 
+Список проектов поддерживает пагинацию:
+
+```text
+GET /projects/?page=1&limit=20
+```
+
+Параметры:
+
+* `page` — номер страницы, начиная с 1;
+* `limit` — количество элементов на странице, от 1 до 100.
+
+Ответ:
+
+```json
+{
+  "items": [],
+  "total": 0,
+  "page": 1,
+  "limit": 20,
+  "pages": 0
+}
+```
+
 ### Tasks
 
 ```text
@@ -239,6 +276,24 @@ POST   /projects/{project_id}/tasks/
 GET    /projects/{project_id}/tasks/
 PUT    /projects/{project_id}/tasks/{task_id}
 DELETE /projects/{project_id}/tasks/{task_id}
+```
+
+Список задач поддерживает пагинацию:
+
+```text
+GET /projects/{project_id}/tasks/?page=1&limit=20
+```
+
+Ответ имеет тот же формат:
+
+```json
+{
+  "items": [],
+  "total": 0,
+  "page": 1,
+  "limit": 20,
+  "pages": 0
+}
 ```
 
 ### Time entries
@@ -252,6 +307,24 @@ POST   /projects/{project_id}/time-entries/start
 POST   /projects/{project_id}/time-entries/stop
 
 GET    /projects/{project_id}/time-entries/cost
+```
+
+Список временных записей поддерживает пагинацию:
+
+```text
+GET /projects/{project_id}/time-entries/?page=1&limit=20
+```
+
+Ответ:
+
+```json
+{
+  "items": [],
+  "total": 0,
+  "page": 1,
+  "limit": 20,
+  "pages": 0
+}
 ```
 
 ## Пример сценария
@@ -310,6 +383,8 @@ API использует несколько уровней защиты:
 
 Например, пользователь не может получить проект другого пользователя даже если знает его `project_id`.
 
+Для активного таймера также используется ограничение на уровне PostgreSQL, не позволяющее создать несколько активных таймеров для одного проекта одновременно.
+
 ## Тестирование
 
 Запустить все тесты:
@@ -318,7 +393,7 @@ API использует несколько уровней защиты:
 docker compose exec app pytest -v
 ```
 
-Текущий набор содержит **43 автоматических теста**.
+Текущий набор содержит **81 автоматический тест**.
 
 Покрываются:
 
@@ -331,20 +406,45 @@ docker compose exec app pytest -v
 * валидация email;
 * CRUD проектов;
 * изоляция проектов;
+* пагинация проектов;
 * dashboard;
 * расчёт рентабельности;
 * валидация денежных значений;
 * CRUD задач;
 * изоляция задач;
 * валидация задач;
+* пагинация задач;
 * создание временных записей;
 * таймер;
 * расчёт стоимости;
 * привязка времени к задачам;
+* пагинация временных записей;
 * удаление временных записей;
 * изоляция временных записей;
 * обработка несуществующих ресурсов;
 * проверка авторизации.
+
+## CI
+
+Для проекта настроен GitHub Actions.
+
+При `push` в `main` и при создании Pull Request запускаются:
+
+```text
+Checkout
+    ↓
+Python 3.13
+    ↓
+PostgreSQL 17
+    ↓
+Установка зависимостей
+    ↓
+Alembic migrations
+    ↓
+pytest
+```
+
+Таким образом, изменения проверяются автоматически до попадания в основную ветку.
 
 ## База данных
 
@@ -390,15 +490,16 @@ Task 1 ─── N TimeEntry
 * [x] Dashboard
 * [x] Ownership isolation
 * [x] API validation
+* [x] Pagination
 * [x] Automated tests
 * [x] Docker Compose
+* [x] GitHub Actions CI
 
 ### Планируется
 
 * [ ] Web-интерфейс
 * [ ] Redis
 * [ ] Celery для фоновых задач
-* [ ] CI/CD
 * [ ] Production deployment
 * [ ] отчёты по проектам
 * [ ] экспорт данных
@@ -416,26 +517,9 @@ Task 1 ─── N TimeEntry
 * миграции базы данных;
 * валидацию данных;
 * контроль доступа;
+* пагинацию;
 * тестирование API;
+* CI;
 * контейнеризацию.
 
 Проект также может использоваться как внутренний инструмент для учёта времени и рентабельности IT-проектов.
-
-````
-
-После сохранения **не надо пока писать новый код**.
-
-Сделай:
-
-```powershell
-git status
-````
-
-и затем:
-
-```powershell
-git add README.md
-git commit -m "docs: add project README"
-```
-
-После этого переходим к **Swagger/API-документации и приведению эндпоинтов к аккуратному production-виду**.
