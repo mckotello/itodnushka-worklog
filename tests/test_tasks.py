@@ -564,3 +564,64 @@ async def test_task_list_rejects_invalid_limit(
     )
 
     assert response.status_code == 422
+
+@pytest.mark.asyncio
+async def test_user_cannot_access_another_users_task(
+        client,
+        auth_token,
+        project_factory,
+):
+    token_1 = await auth_token("user1@example.com")
+    token_2 = await auth_token("user2@example.com")
+
+    project = await project_factory(
+        token_1,
+        name="Private Project",
+    )
+
+    response = await client.post(
+        f"/projects/{project['id']}/tasks/",
+        headers={
+            "Authorization": f"Bearer {token_1}",
+        },
+        json={
+            "name": "Private Task",
+        },
+    )
+
+    assert response.status_code == 201
+
+    task = response.json()
+
+    response = await client.get(
+        f"/projects/{project['id']}/tasks/",
+        headers={
+            "Authorization": f"Bearer {token_2}",
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Project not found"
+
+    response = await client.put(
+        f"/projects/{project['id']}/tasks/{task['id']}",
+        headers={
+            "Authorization": f"Bearer {token_2}",
+        },
+        json={
+            "name": "Hacked Task",
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Task not found"
+
+    response = await client.delete(
+        f"/projects/{project['id']}/tasks/{task['id']}",
+        headers={
+            "Authorization": f"Bearer {token_2}",
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Task not found"

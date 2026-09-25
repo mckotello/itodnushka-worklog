@@ -411,9 +411,10 @@ import pytest
 
 @pytest.mark.asyncio
 async def test_start_timer_rejects_second_active_timer(
-        client,
-        auth_token,
-        project_factory,
+    client,
+    auth_token,
+    project_factory,
+    db_session,
 ):
     token = await auth_token(
         "second-timer-test@example.com",
@@ -443,3 +444,53 @@ async def test_start_timer_rejects_second_active_timer(
     assert second_response.json() == {
         "detail": "A timer is already running for this project",
     }
+
+@pytest.mark.asyncio
+async def test_user_cannot_access_another_users_time_entry(
+    client,
+    auth_token,
+    project_factory,
+    db_session,
+):
+    token_1 = await auth_token("user1@example.com")
+    token_2 = await auth_token("user2@example.com")
+
+    project = await project_factory(
+        token_1,
+        name="Private Project",
+    )
+
+    response = await client.post(
+        f"/projects/{project['id']}/time-entries/",
+        headers={
+            "Authorization": f"Bearer {token_1}",
+        },
+        json={
+            "started_at": "2026-09-25T10:00:00Z",
+            "ended_at": "2026-09-25T11:00:00Z",
+        },
+    )
+
+    assert response.status_code == 201
+
+    time_entry = response.json()
+
+    response = await client.get(
+        f"/projects/{project['id']}/time-entries/",
+        headers={
+            "Authorization": f"Bearer {token_2}",
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Project not found"
+
+    response = await client.delete(
+        f"/projects/{project['id']}/time-entries/{time_entry['id']}",
+        headers={
+            "Authorization": f"Bearer {token_2}",
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Time entry not found"
