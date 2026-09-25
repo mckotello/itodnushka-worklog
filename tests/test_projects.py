@@ -695,3 +695,112 @@ async def test_user_cannot_access_another_users_project(
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Project not found"
+
+@pytest.mark.asyncio
+async def test_project_summary_calculates_cost_and_remaining_budget(
+    client,
+    auth_token,
+    project_factory,
+    db_session,
+):
+    token = await auth_token("summary-test@example.com")
+
+    project = await project_factory(
+        token,
+        name="Profitability Project",
+    )
+
+    response = await client.post(
+        f"/projects/{project['id']}/time-entries/",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+        json={
+            "started_at": "2026-09-25T10:00:00Z",
+            "ended_at": "2026-09-25T12:00:00Z",
+        },
+    )
+
+    assert response.status_code == 201
+
+    response = await client.get(
+        f"/projects/{project['id']}/summary",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["total_seconds"] == 7200
+    assert data["total_hours"] == "2"
+    assert data["hourly_rate"] == "3000.00"
+    assert data["total_cost"] == "6000.00"
+    assert data["remaining_budget"] == "94000.00"
+    assert data["budget_used_percent"] == "6.00"
+
+@pytest.mark.asyncio
+async def test_dashboard_calculates_projects_hours_and_cost(
+        client,
+        auth_token,
+        project_factory,
+        db_session,
+):
+    token = await auth_token("dashboard-test@example.com")
+
+    project_1 = await project_factory(
+        token,
+        name="Project One",
+    )
+
+    project_2 = await project_factory(
+        token,
+        name="Project Two",
+    )
+
+    response = await client.post(
+        f"/projects/{project_1['id']}/time-entries/",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+        json={
+            "started_at": "2026-09-25T10:00:00Z",
+            "ended_at": "2026-09-25T12:00:00Z",
+        },
+    )
+
+    assert response.status_code == 201
+
+    response = await client.post(
+        f"/projects/{project_2['id']}/time-entries/",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+        json={
+            "started_at": "2026-09-25T13:00:00Z",
+            "ended_at": "2026-09-25T14:30:00Z",
+        },
+    )
+
+    assert response.status_code == 201
+
+    response = await client.get(
+        "/projects/dashboard",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["total_projects"] == 2
+    assert data["active_projects"] == 2
+    assert data["total_seconds"] == 12600
+    assert data["total_hours"] == "3.5"
+    assert data["total_budget"] == "200000.00"
+    assert data["total_cost"] == "10500.000"
+    assert data["budget_used_percent"] == "5.2500"
