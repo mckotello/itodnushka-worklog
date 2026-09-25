@@ -20,8 +20,17 @@ class TimeEntryResponse(BaseModel):
     duration_seconds: int | None
 
 
+class TimeEntryListResponse(BaseModel):
+    items: list[TimeEntryResponse]
+    total: int
+    page: int
+    limit: int
+    pages: int
+
+
 class TimerStart(BaseModel):
     task_id: int | None = None
+
 
 class TimeCostResponse(BaseModel):
     total_seconds: int

@@ -302,9 +302,12 @@ async def test_time_entry_delete_and_isolation(client):
 
     assert response.status_code == 200
 
-    entries = response.json()
+    data = response.json()
 
-    assert all(entry["id"] != entry_id for entry in entries)
+    assert all(
+        entry["id"] != entry_id
+        for entry in data["items"]
+    )
 
 
 @pytest.mark.asyncio

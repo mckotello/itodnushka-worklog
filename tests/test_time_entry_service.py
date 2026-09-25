@@ -310,12 +310,14 @@ async def test_get_project_time_entries_orders_by_started_at(db_session):
     db_session.add_all([first, second])
     await db_session.commit()
 
-    result = await get_project_time_entries(
+    result, total = await get_project_time_entries(
         session=db_session,
         project_id=project.id,
+        page=1,
+        limit=20,
     )
 
-    assert len(result) == 2
+    assert total == 2
     assert result[0].id == second.id
     assert result[1].id == first.id
 

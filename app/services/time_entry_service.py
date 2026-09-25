@@ -1,7 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.project import Project
@@ -70,16 +70,33 @@ async def get_active_user_timer(
 async def get_project_time_entries(
     session: AsyncSession,
     project_id: int,
-) -> list[TimeEntry]:
+    page: int,
+    limit: int,
+) -> tuple[list[TimeEntry], int]:
+    count_result = await session.execute(
+        select(func.count(TimeEntry.id))
+        .where(
+            TimeEntry.project_id == project_id,
+        )
+    )
+
+    total = count_result.scalar_one()
+
+    offset = (page - 1) * limit
+
     result = await session.execute(
         select(TimeEntry)
         .where(
             TimeEntry.project_id == project_id,
         )
         .order_by(TimeEntry.started_at.desc())
+        .offset(offset)
+        .limit(limit)
     )
 
-    return list(result.scalars().all())
+    time_entries = list(result.scalars().all())
+
+    return time_entries, total
 
 
 async def get_user_time_entry(

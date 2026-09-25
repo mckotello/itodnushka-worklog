@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,6 +10,7 @@ from app.models.user import User
 from app.schemas.time_entry import (
     TimeCostResponse,
     TimeEntryCreate,
+    TimeEntryListResponse,
     TimeEntryResponse,
     TimerStart,
 )
@@ -99,10 +100,12 @@ async def create_time_entry(
 
 @router.get(
     "/",
-    response_model=list[TimeEntryResponse],
+    response_model=TimeEntryListResponse,
 )
 async def get_time_entries(
     project_id: int,
+    page: int = Query(default=1, ge=1),
+    limit: int = Query(default=20, ge=1, le=100),
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
@@ -118,9 +121,21 @@ async def get_time_entries(
             detail="Project not found",
         )
 
-    return await get_project_time_entries(
+    time_entries, total = await get_project_time_entries(
         session=session,
         project_id=project_id,
+        page=page,
+        limit=limit,
+    )
+
+    pages = (total + limit - 1) // limit if total > 0 else 0
+
+    return TimeEntryListResponse(
+        items=time_entries,
+        total=total,
+        page=page,
+        limit=limit,
+        pages=pages,
     )
 
 
