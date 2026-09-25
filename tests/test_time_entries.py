@@ -494,3 +494,201 @@ async def test_user_cannot_access_another_users_time_entry(
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Time entry not found"
+
+@pytest.mark.asyncio
+async def test_time_entry_cost_calculation(
+    client,
+    auth_token,
+    project_factory,
+    db_session,
+):
+    token = await auth_token("time-cost-test@example.com")
+
+    project = await project_factory(
+        token,
+        name="Cost Project",
+    )
+
+    response = await client.post(
+        f"/projects/{project['id']}/time-entries/",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+        json={
+            "started_at": "2026-09-25T10:00:00Z",
+            "ended_at": "2026-09-25T12:00:00Z",
+        },
+    )
+
+    assert response.status_code == 201
+
+    response = await client.get(
+        f"/projects/{project['id']}/time-entries/cost",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["total_seconds"] == 7200
+    assert data["total_hours"] == 2.0
+    assert data["hourly_rate"] == 3000.0
+    assert data["total_cost"] == 6000.0
+
+@pytest.mark.asyncio
+async def test_time_entry_cost_without_hourly_rate(
+        client,
+        auth_token,
+        project_factory,
+        db_session,
+):
+    token = await auth_token("time-cost-no-rate@example.com")
+
+    project = await project_factory(
+        token,
+        name="No Rate Project",
+    )
+
+    # Убираем почасовую ставку у проекта
+    response = await client.put(
+        f"/projects/{project['id']}",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+        json={
+            "hourly_rate": None,
+        },
+    )
+
+    assert response.status_code == 200
+
+    response = await client.post(
+        f"/projects/{project['id']}/time-entries/",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+        json={
+            "started_at": "2026-09-25T10:00:00Z",
+            "ended_at": "2026-09-25T12:00:00Z",
+        },
+    )
+
+    assert response.status_code == 201
+
+    response = await client.get(
+        f"/projects/{project['id']}/time-entries/cost",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["total_seconds"] == 7200
+    assert data["total_hours"] == 2.0
+    assert data["hourly_rate"] is None
+    assert data["total_cost"] is None
+
+@pytest.mark.asyncio
+async def test_time_entry_rejects_invalid_time_range(
+        client,
+        auth_token,
+        project_factory,
+        db_session,
+):
+    token = await auth_token("invalid-time-test@example.com")
+
+    project = await project_factory(
+        token,
+        name="Invalid Time Project",
+    )
+
+    response = await client.post(
+        f"/projects/{project['id']}/time-entries/",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+        json={
+            "started_at": "2026-09-25T12:00:00Z",
+            "ended_at": "2026-09-25T10:00:00Z",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "ended_at must be later than started_at"
+
+@pytest.mark.asyncio
+async def test_stop_timer_without_active_timer(
+        client,
+        auth_token,
+        project_factory,
+        db_session,
+):
+    token = await auth_token("stop-no-timer@example.com")
+
+    project = await project_factory(
+        token,
+        name="No Timer Project",
+    )
+
+    response = await client.post(
+        f"/projects/{project['id']}/time-entries/stop",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "No active timer found"
+
+@pytest.mark.asyncio
+async def test_start_and_stop_timer(
+        client,
+        auth_token,
+        project_factory,
+        db_session,
+):
+    token = await auth_token("start-stop-test@example.com")
+
+    project = await project_factory(
+        token,
+        name="Timer Project",
+    )
+
+    response = await client.post(
+        f"/projects/{project['id']}/time-entries/start",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+        json={},
+    )
+
+    assert response.status_code == 201
+
+    started_entry = response.json()
+
+    assert started_entry["project_id"] == project["id"]
+    assert started_entry["ended_at"] is None
+    assert started_entry["duration_seconds"] is None
+
+    response = await client.post(
+        f"/projects/{project['id']}/time-entries/stop",
+        headers={
+            "Authorization": f"Bearer {token}",
+        },
+    )
+
+    assert response.status_code == 200
+
+    stopped_entry = response.json()
+
+    assert stopped_entry["id"] == started_entry["id"]
+    assert stopped_entry["project_id"] == project["id"]
+    assert stopped_entry["ended_at"] is not None
+    assert stopped_entry["duration_seconds"] is not None
+    assert stopped_entry["duration_seconds"] >= 0
