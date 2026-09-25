@@ -671,3 +671,27 @@ async def test_project_list_rejects_invalid_limit(
     )
 
     assert response.status_code == 422
+
+@pytest.mark.asyncio
+async def test_user_cannot_access_another_users_project(
+        client,
+        auth_token,
+        project_factory,
+):
+    token_1 = await auth_token("user1@example.com")
+    token_2 = await auth_token("user2@example.com")
+
+    project = await project_factory(
+        token_1,
+        name="Private Project",
+    )
+
+    response = await client.get(
+        f"/projects/{project['id']}",
+        headers={
+            "Authorization": f"Bearer {token_2}",
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Project not found"
