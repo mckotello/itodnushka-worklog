@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ITоднушка Worklog</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div id="app">
+
+    <section id="auth-screen" class="screen">
+        <div class="auth-card">
+            <div class="logo">IT<span>однушка</span></div>
+            <h1>Worklog</h1>
+            <p class="muted">Учёт времени и рентабельности проектов</p>
+
+            <div class="tabs">
+                <button class="tab active" data-auth="login">Войти</button>
+                <button class="tab" data-auth="register">Регистрация</button>
+            </div>
+
+            <form id="auth-form">
+                <label>
+                    Email
+                    <input id="auth-email" type="email" required placeholder="you@example.com">
+                </label>
+
+                <label>
+                    Пароль
+                    <input id="auth-password" type="password" required minlength="8">
+                </label>
+
+                <button class="primary full" type="submit" id="auth-submit">
+                    Войти
+                </button>
+            </form>
+
+            <div id="auth-error" class="error hidden"></div>
+        </div>
+    </section>
+
+    <section id="dashboard-screen" class="hidden">
+
+        <header class="topbar">
+            <div class="logo">IT<span>однушка</span> <small>Worklog</small></div>
+
+            <div class="topbar-actions">
+                <button class="ghost" id="refresh-btn">Обновить</button>
+                <button class="ghost danger-text" id="logout-btn">Выйти</button>
+            </div>
+        </header>
+
+        <main class="container">
+
+            <div class="page-header">
+                <div>
+                    <h1>Dashboard</h1>
+                    <p class="muted">Что происходит с проектами прямо сейчас</p>
+                </div>
+
+                <button class="primary" id="new-project-btn">
+                    + Новый проект
+                </button>
+            </div>
+
+            <div id="dashboard-error" class="error hidden"></div>
+
+            <section class="stats">
+                <div class="stat-card">
+                    <span class="stat-label">Проекты</span>
+                    <strong id="stat-projects">0</strong>
+                    <span class="stat-description">
+                        <span id="stat-active">0</span> активных
+                    </span>
+                </div>
+
+                <div class="stat-card">
+                    <span class="stat-label">Рабочее время</span>
+                    <strong id="stat-hours">0 ч</strong>
+                    <span class="stat-description">по завершённым записям</span>
+                </div>
+
+                <div class="stat-card">
+                    <span class="stat-label">Стоимость</span>
+                    <strong id="stat-cost">0 ₽</strong>
+                    <span class="stat-description">стоимость затраченного времени</span>
+                </div>
+
+                <div class="stat-card">
+                    <span class="stat-label">Бюджет</span>
+                    <strong id="stat-budget">0 ₽</strong>
+                    <span class="stat-description">
+                        использовано <span id="stat-percent">—</span>
+                    </span>
+                </div>
+            </section>
+
+            <section class="projects-section">
+                <div class="section-header">
+                    <h2>Проекты</h2>
+                    <span id="project-count" class="muted"></span>
+                </div>
+
+                <div id="projects-list" class="projects-grid"></div>
+
+                <div id="projects-empty" class="empty hidden">
+                    <h3>Проектов пока нет</h3>
+                    <p>Создай первый проект и начни отслеживать время.</p>
+                    <button class="primary" id="empty-new-project">
+                        Создать проект
+                    </button>
+                </div>
+            </section>
+
+        </main>
+    </section>
+
+    <section id="project-screen" class="hidden">
+
+        <header class="topbar">
+            <button class="back-button" id="back-btn">← Проекты</button>
+
+            <div class="logo">IT<span>однушка</span> <small>Worklog</small></div>
+
+            <button class="ghost danger-text" id="logout-btn-project">Выйти</button>
+        </header>
+
+        <main class="container">
+
+            <div id="project-error" class="error hidden"></div>
+
+            <div class="page-header">
+                <div>
+                    <span id="project-status" class="badge"></span>
+                    <h1 id="project-title">Проект</h1>
+                    <p id="project-client" class="muted"></p>
+                </div>
+
+                <div class="page-actions">
+                    <button class="ghost" id="edit-project-btn">
+                        Редактировать
+                    </button>
+
+                    <button class="danger-button" id="delete-project-btn">
+                        Удалить проект
+                    </button>
+                </div>
+            </div>
+
+            <section class="stats project-stats">
+                <div class="stat-card">
+                    <span class="stat-label">Время</span>
+                    <strong id="project-hours">0 ч</strong>
+                </div>
+
+                <div class="stat-card">
+                    <span class="stat-label">Стоимость</span>
+                    <strong id="project-cost">0 ₽</strong>
+                </div>
+
+                <div class="stat-card">
+                    <span class="stat-label">Бюджет</span>
+                    <strong id="project-budget">—</strong>
+                </div>
+
+                <div class="stat-card">
+                    <span class="stat-label">Остаток</span>
+                    <strong id="project-remaining">—</strong>
+                </div>
+            </section>
+
+            <div class="two-columns">
+
+                <section class="panel">
+                    <div class="section-header">
+                        <h2>Таймер</h2>
+                        <span id="timer-status" class="timer-status">Не запущен</span>
+                    </div>
+
+                    <div class="timer">
+                        <strong id="timer-value">00:00:00</strong>
+                    </div>
+
+                    <label>
+                        Задача
+                        <select id="timer-task">
+                            <option value="">Без задачи</option>
+                        </select>
+                    </label>
+
+                    <button class="primary full" id="timer-btn">
+                        Запустить таймер
+                    </button>
+                </section>
+
+                <section class="panel">
+                    <div class="section-header">
+                        <h2>Новая задача</h2>
+                    </div>
+
+                    <form id="task-form">
+                        <label>
+                            Название
+                            <input id="task-name" required maxlength="255"
+                                   placeholder="Например: сверстать страницу">
+                        </label>
+
+                        <button class="primary full" type="submit">
+                            Добавить задачу
+                        </button>
+                    </form>
+                </section>
+
+            </div>
+
+            <section class="panel">
+                <div class="section-header">
+                    <h2>Задачи</h2>
+                </div>
+
+                <div id="tasks-list" class="list"></div>
+            </section>
+
+            <section class="panel">
+                <div class="section-header">
+                    <h2>История времени</h2>
+                </div>
+
+                <div id="entries-list" class="list"></div>
+            </section>
+
+        </main>
+    </section>
+
+</div>
+
+<div id="modal" class="modal hidden">
+    <div class="modal-card">
+        <div class="section-header">
+            <h2 id="modal-title">Новый проект</h2>
+            <button class="close-button" id="close-modal">×</button>
+        </div>
+
+        <form id="project-form">
+
+            <label>
+                Название
+                <input id="project-name" required maxlength="255"
+                       placeholder="Например: сайт ITоднушка">
+            </label>
+
+            <label>
+                Клиент
+                <input id="project-client-input"
+                       placeholder="Название клиента">
+            </label>
+
+            <div class="form-row">
+                <label>
+                    Бюджет
+                    <input id="project-budget-input" type="number"
+                           min="0" step="0.01" placeholder="100000">
+                </label>
+
+                <label>
+                    Ставка / час
+                    <input id="project-rate-input" type="number"
+                           min="0" step="0.01" placeholder="3000">
+                </label>
+            </div>
+
+            <label>
+                Дедлайн
+                <input id="project-deadline-input" type="date">
+            </label>
+
+            <label>
+                Статус
+                <select id="project-status-input">
+                    <option value="active">Активный</option>
+                    <option value="completed">Завершён</option>
+                    <option value="archived">Архив</option>
+                </select>
+            </label>
+
+            <div id="project-form-error" class="error hidden"></div>
+
+            <button class="primary full" type="submit" id="project-submit">
+                Создать проект
+            </button>
+        </form>
+    </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

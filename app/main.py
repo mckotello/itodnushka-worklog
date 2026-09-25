@@ -1,4 +1,6 @@
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
 from app.api.auth import router as auth_router
@@ -14,11 +16,23 @@ app = FastAPI(
     version="0.1.0",
 )
 
-
 app.include_router(projects_router)
 app.include_router(auth_router)
 app.include_router(tasks_router)
 app.include_router(time_entries_router)
+
+app.mount(
+    "/static",
+    StaticFiles(directory="app/static"),
+    name="static",
+)
+
+
+@app.get("/", include_in_schema=False)
+async def frontend():
+    return FileResponse("app/static/index.html")
+
+
 @app.get("/health")
 async def health_check():
     return {"status": "ok"}
